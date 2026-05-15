@@ -6,8 +6,9 @@ package com.example.gramasanjeevin.model
  */
 data class Pharmacy(
     val shopId: String = "",
+    val ownerId: String = "",       // UID of the Pharmacist user
     val name: String = "",          // Store Name
-    val ownerName: String = "",     // Store Owner
+    val ownerName: String = "",     // Store Owner Display Name
     val village: String = "",
     val address: String = "",       // Store Address
     val latitude: Double = 0.0,
@@ -15,6 +16,6 @@ data class Pharmacy(
     val phone: String = "",         // Store Number
     val licenseNumber: String = "",
     val isVerified: Boolean = false,
-    val licenseUrls: List<String> = emptyList(), // List of license document URLs
-    val inventoryIds: List<String> = emptyList() // List of item IDs in this store
+    val licenseUrls: List<String> = emptyList(), 
+    val inventoryIds: List<String> = emptyList()
 )

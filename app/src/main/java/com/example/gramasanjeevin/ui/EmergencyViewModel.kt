@@ -4,6 +4,7 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.gramasanjeevin.model.InventoryItem
+import com.example.gramasanjeevin.model.OrderItem
 import com.example.gramasanjeevin.model.Pharmacy
 import com.example.gramasanjeevin.model.Request
 import com.example.gramasanjeevin.model.RequestType
@@ -11,6 +12,8 @@ import com.example.gramasanjeevin.model.SearchResult
 import com.example.gramasanjeevin.model.User
 import com.example.gramasanjeevin.utils.FirestoreProvider
 import com.example.gramasanjeevin.utils.LocationUtils
+import com.google.firebase.auth.ktx.auth
+import com.google.firebase.ktx.Firebase
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -19,6 +22,7 @@ import java.util.UUID
 
 class EmergencyViewModel : ViewModel() {
     private val db = FirestoreProvider.getDb()
+    private val auth = Firebase.auth
 
     private val _emergencyList = MutableStateFlow<List<SearchResult>>(emptyList())
     val emergencyList: StateFlow<List<SearchResult>> = _emergencyList
@@ -71,22 +75,34 @@ class EmergencyViewModel : ViewModel() {
     }
 
     fun sendRestockRequest(shopId: String, medicineName: String) {
+        val currentUserId = auth.currentUser?.uid ?: return
+        
         viewModelScope.launch {
             try {
-                val userDoc = db.collection("users").document("user_001").get().await()
+                val userDoc = db.collection("users").document(currentUserId).get().await()
                 val user = userDoc.toObject(User::class.java)
                 val userName = user?.name ?: "Unknown User"
 
                 val requestId = UUID.randomUUID().toString()
+                
+                val orderItems: List<OrderItem> = listOf(
+                    OrderItem(
+                        medicineName = medicineName,
+                        quantity = 1,
+                        status = "PENDING"
+                    )
+                )
+
                 val request = Request(
                     requestId = requestId,
                     shopId = shopId,
-                    userId = "user_001",
+                    userId = currentUserId,
                     userName = userName,
                     type = RequestType.RESTOCK,
-                    items = listOf(medicineName),
+                    items = orderItems,
                     status = "PENDING"
                 )
+
                 db.collection("requests").document(requestId).set(request).await()
                 _requestStatus.value = "Restock request sent!"
             } catch (e: Exception) {

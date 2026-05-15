@@ -1,6 +1,7 @@
 package com.example.gramasanjeevin.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -22,6 +23,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
+import com.example.gramasanjeevin.utils.L
 
 private val DarkGreen = Color(0xFF00695C)
 private val TealLight = Color(0xFFE0F2F1)
@@ -33,18 +35,24 @@ private val PageBg = Color(0xFFF8F9FB)
 @Composable
 fun PharmacistProfileScreen(
     navController: NavController,
-    viewModel: PharmacistViewModel = viewModel()
+    viewModel: PharmacistViewModel = viewModel(),
+    authViewModel: AuthViewModel = viewModel()
 ) {
     val shopDetails by viewModel.shopDetails.collectAsState()
+    val isEnglish by authViewModel.isEnglish.collectAsState()
     val scrollState = rememberScrollState()
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Store Profile", fontWeight = FontWeight.Bold) },
+                title = { Text(L.profile(isEnglish), fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack, 
+                            contentDescription = L.back(isEnglish),
+                            tint = Color.Black
+                        )
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White)
@@ -84,7 +92,7 @@ fun PharmacistProfileScreen(
                     Spacer(modifier = Modifier.height(16.dp))
 
                     Text(
-                        text = shopDetails?.name ?: "Store Name",
+                        text = shopDetails?.name ?: L.s(isEnglish, "Store Name", "ಅಂಗಡಿಯ ಹೆಸರು"),
                         fontSize = 22.sp,
                         fontWeight = FontWeight.Bold,
                         color = TextPrimary
@@ -113,7 +121,7 @@ fun PharmacistProfileScreen(
                             )
                             Spacer(Modifier.width(6.dp))
                             Text(
-                                text = if (shopDetails?.isVerified == true) "Verified Store" else "Verification Pending",
+                                text = if (shopDetails?.isVerified == true) L.s(isEnglish, "Verified Store", "ಪರಿಶೀಲಿಸಿದ ಅಂಗಡಿ") else L.s(isEnglish, "Verification Pending", "ಪರಿಶೀಲನೆ ಬಾಕಿ ಇದೆ"),
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = if (shopDetails?.isVerified == true) Color(0xFF2E7D32) else Color(0xFFE65100)
@@ -125,9 +133,43 @@ fun PharmacistProfileScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
 
+            // Language Selection Card
+            Card(
+                modifier = Modifier.fillMaxWidth().padding(bottom = 24.dp),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Language, contentDescription = null, tint = DarkGreen, modifier = Modifier.size(20.dp))
+                        Spacer(Modifier.width(12.dp))
+                        Text(L.language(isEnglish), fontWeight = FontWeight.Bold, color = TextPrimary)
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = if (isEnglish) "English" else "ಕನ್ನಡ",
+                            color = DarkGreen,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.clickable { authViewModel.toggleLanguage() }
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Switch(
+                            checked = !isEnglish,
+                            onCheckedChange = { authViewModel.toggleLanguage() },
+                            colors = SwitchDefaults.colors(checkedThumbColor = DarkGreen, checkedTrackColor = TealLight)
+                        )
+                    }
+                }
+            }
+
             // Details Section
             Text(
-                text = "Business Information",
+                text = L.s(isEnglish, "Business Information", "ವ್ಯಾಪಾರ ಮಾಹಿತಿ"),
                 fontSize = 16.sp,
                 fontWeight = FontWeight.Bold,
                 color = TextPrimary,
@@ -143,31 +185,31 @@ fun PharmacistProfileScreen(
                 Column(modifier = Modifier.padding(16.dp)) {
                     ProfileDetailItem(
                         icon = Icons.Default.Person,
-                        label = "Store Owner",
+                        label = L.s(isEnglish, "Store Owner", "ಅಂಗಡಿ ಮಾಲೀಕರು"),
                         value = shopDetails?.ownerName ?: "N/A"
                     )
                     HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp), color = Color(0xFFF1F1F1))
                     ProfileDetailItem(
                         icon = Icons.Default.Badge,
-                        label = "License Number",
+                        label = L.s(isEnglish, "License Number", "ಪರವಾನಗಿ ಸಂಖ್ಯೆ"),
                         value = shopDetails?.licenseNumber ?: "N/A"
                     )
                     HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp), color = Color(0xFFF1F1F1))
                     ProfileDetailItem(
                         icon = Icons.Default.Phone,
-                        label = "Contact Number",
+                        label = L.phoneNumber(isEnglish),
                         value = shopDetails?.phone ?: "N/A"
                     )
                     HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp), color = Color(0xFFF1F1F1))
                     ProfileDetailItem(
                         icon = Icons.Default.Map,
-                        label = "Village",
+                        label = L.village(isEnglish),
                         value = shopDetails?.village ?: "N/A"
                     )
                     HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp), color = Color(0xFFF1F1F1))
                     ProfileDetailItem(
                         icon = Icons.Default.LocationOn,
-                        label = "Full Address",
+                        label = L.address(isEnglish),
                         value = shopDetails?.address ?: "N/A"
                     )
                 }
@@ -183,13 +225,13 @@ fun PharmacistProfileScreen(
                     }
                 },
                 modifier = Modifier.fillMaxWidth().height(56.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFC62828)),
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFC62828), contentColor = Color.White),
                 shape = RoundedCornerShape(12.dp),
                 elevation = ButtonDefaults.buttonElevation(defaultElevation = 2.dp)
             ) {
                 Icon(Icons.AutoMirrored.Filled.Logout, contentDescription = null)
                 Spacer(modifier = Modifier.width(12.dp))
-                Text("Logout from Panel", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                Text(L.s(isEnglish, "Logout from Panel", "ಪ್ಯಾನಲ್‌ನಿಂದ ಹೊರಬನ್ನಿ"), fontWeight = FontWeight.Bold, fontSize = 16.sp)
             }
             
             Spacer(modifier = Modifier.height(48.dp))

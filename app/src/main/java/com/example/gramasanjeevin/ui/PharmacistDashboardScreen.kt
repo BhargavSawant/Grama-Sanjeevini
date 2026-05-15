@@ -21,6 +21,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
+import com.example.gramasanjeevin.utils.L
 
 private val DarkGreen = Color(0xFF00695C)
 private val EmergencyRed = Color(0xFFC62828)
@@ -32,11 +33,14 @@ private val PageBg = Color(0xFFF8F9FB)
 @Composable
 fun PharmacistDashboardScreen(
     navController: NavController,
-    viewModel: PharmacistViewModel = viewModel()
+    viewModel: PharmacistViewModel = viewModel(),
+    authViewModel: AuthViewModel = viewModel()
 ) {
     val stats by viewModel.stats.collectAsState()
     val shopDetails by viewModel.shopDetails.collectAsState()
     val requests by viewModel.requests.collectAsState()
+    val isEnglish by authViewModel.isEnglish.collectAsState()
+    
     val pendingRequests = requests.count { it.status == "PENDING" }
 
     Column(
@@ -62,7 +66,7 @@ fun PharmacistDashboardScreen(
                 )
                 Spacer(Modifier.width(8.dp))
                 Text(
-                    text = "Grama-Sanjeevini",
+                    text = L.gramaSanjeevini(isEnglish),
                     fontSize = 20.sp,
                     fontWeight = FontWeight.Bold,
                     color = DarkGreen
@@ -77,19 +81,19 @@ fun PharmacistDashboardScreen(
                     .clickable { navController.navigate("pharmacist_profile") },
                 contentAlignment = Alignment.Center
             ) {
-                Icon(Icons.Default.Person, contentDescription = "Profile", tint = DarkGreen)
+                Icon(Icons.Default.Person, contentDescription = L.profile(isEnglish), tint = DarkGreen)
             }
         }
 
         Column(modifier = Modifier.padding(horizontal = 24.dp)) {
             Text(
-                text = "Pharmacy Dashboard",
+                text = L.pharmacyDashboard(isEnglish),
                 fontSize = 32.sp,
                 fontWeight = FontWeight.Bold,
                 color = TextPrimary
             )
             Text(
-                text = shopDetails?.name ?: "Manage your store inventory",
+                text = shopDetails?.name ?: L.manageInventory(isEnglish),
                 fontSize = 16.sp,
                 color = TextMuted
             )
@@ -125,7 +129,7 @@ fun PharmacistDashboardScreen(
                                 shape = RoundedCornerShape(4.dp)
                             ) {
                                 Text(
-                                    "Action Required",
+                                    L.actionRequired(isEnglish),
                                     color = Color.White,
                                     fontSize = 10.sp,
                                     fontWeight = FontWeight.Bold,
@@ -134,13 +138,16 @@ fun PharmacistDashboardScreen(
                             }
                             Spacer(Modifier.height(8.dp))
                             Text(
-                                "Stock Alerts",
+                                L.stockAlerts(isEnglish),
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 18.sp,
                                 color = TextPrimary
                             )
                             Text(
-                                "${stats.criticalItems} items are critically low and ${stats.outOfStockItems} are out of stock.",
+                                if (isEnglish)
+                                    "${stats.criticalItems} items are critically low and ${stats.outOfStockItems} are out of stock."
+                                else
+                                    "${stats.criticalItems} ವಸ್ತುಗಳು ಅತ್ಯಂತ ಕಡಿಮೆಯಿವೆ ಮತ್ತು ${stats.outOfStockItems} ದಾಸ್ತಾನು ಇಲ್ಲ.",
                                 fontSize = 13.sp,
                                 color = TextMuted,
                                 lineHeight = 18.sp
@@ -154,7 +161,7 @@ fun PharmacistDashboardScreen(
 
             // Quick Actions
             Text(
-                text = "Store Management",
+                text = L.storeManagement(isEnglish),
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Bold,
                 color = TextPrimary
@@ -162,8 +169,8 @@ fun PharmacistDashboardScreen(
             Spacer(Modifier.height(16.dp))
 
             DashboardActionCard(
-                title = "My Inventory",
-                description = "View and update current stock",
+                title = L.myInventory(isEnglish),
+                description = L.manageUpdateStock(isEnglish),
                 icon = Icons.Default.Inventory,
                 containerColor = Color.White,
                 onClick = { navController.navigate("pharmacist_inventory") }
@@ -172,8 +179,8 @@ fun PharmacistDashboardScreen(
             Spacer(Modifier.height(12.dp))
 
             DashboardActionCard(
-                title = "Customer Requests",
-                description = if (pendingRequests > 0) "$pendingRequests new requests pending" else "No new requests",
+                title = L.customerRequests(isEnglish),
+                description = if (pendingRequests > 0) L.pendingRequests(isEnglish, pendingRequests) else L.noPendingRequests(isEnglish),
                 icon = Icons.Default.NotificationsActive,
                 containerColor = Color.White,
                 badgeCount = pendingRequests,
@@ -183,8 +190,8 @@ fun PharmacistDashboardScreen(
             Spacer(Modifier.height(12.dp))
 
             DashboardActionCard(
-                title = "Pharmacy Verification",
-                description = if (shopDetails?.isVerified == true) "Store is verified" else "Complete verification now",
+                title = L.pharmacyVerification(isEnglish),
+                description = if (shopDetails?.isVerified == true) L.s(isEnglish, "Store is verified", "ಅಂಗಡಿ ಪರಿಶೀಲಿಸಲಾಗಿದೆ") else L.s(isEnglish, "Complete verification now", "ಪರಿಶೀಲನೆಯನ್ನು ಈಗಲೇ ಪೂರ್ಣಗೊಳಿಸಿ"),
                 icon = Icons.Default.VerifiedUser,
                 containerColor = Color.White,
                 onClick = { navController.navigate("pharmacy_verification") }
@@ -195,7 +202,7 @@ fun PharmacistDashboardScreen(
             // Stats Row (LINKED TO INVENTORY)
             Row(modifier = Modifier.fillMaxWidth()) {
                 PharmacyStatCard(
-                    label = "Total Items",
+                    label = L.totalItems(isEnglish),
                     value = stats.totalItems.toString(),
                     icon = Icons.Default.MedicalServices,
                     modifier = Modifier.weight(1f),
@@ -203,7 +210,7 @@ fun PharmacistDashboardScreen(
                 )
                 Spacer(Modifier.width(16.dp))
                 PharmacyStatCard(
-                    label = "Stock Health",
+                    label = L.stockHealth(isEnglish),
                     value = "${stats.healthPercentage}%",
                     icon = Icons.Default.Analytics,
                     modifier = Modifier.weight(1f),

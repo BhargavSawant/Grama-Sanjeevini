@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "683030199824",
+    "project_id": "grama-sanjeevini-7fe2f",
+    "storage_bucket": "grama-sanjeevini-7fe2f.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:683030199824:android:991743a22c6129a8bad495",
+        "android_client_info": {
+          "package_name": "com.example.gramasanjeevin"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "683030199824-6v415jth920utnjk8r2ssodl250kebjf.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.gramasanjeevin",
+            "certificate_hash": "468fd4879e314d4a693c19b01c931e36091c46c8"
+          }
+        },
+        {
+          "client_id": "683030199824-7p7lempmga59g9k1t2qli36lb0l7iitc.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCRtdbGAeSDodzwDfFpKL4oEGYMU-_6Ecg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "683030199824-7p7lempmga59g9k1t2qli36lb0l7iitc.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -10,5 +10,7 @@ data class InventoryItem(
     val form: String = "Tablets",
     val quantity: Int = 0,
     val isLifeSaving: Boolean = false,
-    val expiryDate: Timestamp = Timestamp.now()
+    val requiresPrescription: Boolean = false,
+    val expiryDate: Timestamp = Timestamp.now(),
+    val imageResName: String = "" // Added field for drawable resource name
 )

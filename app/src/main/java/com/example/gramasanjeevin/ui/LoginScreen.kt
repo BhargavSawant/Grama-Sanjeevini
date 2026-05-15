@@ -1,12 +1,19 @@
 package com.example.gramasanjeevin.ui
 
+import android.app.Activity
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForwardIos
@@ -16,92 +23,129 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.tooling.preview.Preview
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.gramasanjeevin.model.UserRole
+import com.example.gramasanjeevin.utils.L
+import com.google.android.gms.auth.api.signin.GoogleSignIn
+import com.google.android.gms.auth.api.signin.GoogleSignInOptions
+import com.google.android.gms.common.api.ApiException
 
 // ── Shared colour tokens ──────────────────────────────────────────────────────
 private val PowderBlue   = Color(0xFFB0E0E6)
-private val Teal         = Color(0xFF4A9DAB)
-private val TealDark     = Color(0xFF2E7D8A)
+private val Teal         = Color(0xFF00695C)
+private val TealDark     = Color(0xFF004D40)
 private val BlueSurface  = Color(0xFFF0F9FA)
 private val GreenSurface = Color(0xFFF2F7F2)
 private val TextPrimary  = Color(0xFF1A2B35)
 private val TextMuted    = Color(0xFF6B7280)
 
-/**
- * Enhanced Entry screen — role selector first, pharmacist auth on demand.
- * Features a modern, clean UI with soft gradients, subtle animations,
- * and support for both English and Kannada.
- */
 @Composable
 fun LoginScreen(
     onVillagerSelected: () -> Unit,
-    onPharmacistLoginSuccess: () -> Unit
+    onPharmacistLoginSuccess: () -> Unit,
+    authViewModel: AuthViewModel,
+    pharmacistViewModel: PharmacistViewModel
 ) {
-    var showPharmacistAuth by remember { mutableStateOf(false) }
-    var isEnglish by remember { mutableStateOf(true) }
+    var selectedRole by remember { mutableStateOf<UserRole?>(null) }
+    val isEnglish by authViewModel.isEnglish.collectAsState()
+    val authState by authViewModel.authState.collectAsState()
+    val context = LocalContext.current
+
+    LaunchedEffect(authState) {
+        if (authState is AuthState.Success) {
+            if (selectedRole == UserRole.VILLAGER) {
+                onVillagerSelected()
+            } else {
+                onPharmacistLoginSuccess()
+            }
+            authViewModel.resetState()
+        } else if (authState is AuthState.Error) {
+            Toast.makeText(context, (authState as AuthState.Error).message, Toast.LENGTH_LONG).show()
+            authViewModel.resetState()
+        }
+    }
 
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(Color.White)
     ) {
-        // Background Decorative Elements
         BackgroundDecorations()
 
         Column(
             modifier = Modifier.fillMaxSize(),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Top Utilities Bar
             TopUtilityBar(
                 isEnglish = isEnglish,
-                onLanguageToggle = { isEnglish = !isEnglish }
+                onLanguageToggle = { authViewModel.toggleLanguage() }
             )
 
-            // ── Hero header ─────────────────────────────────────────────────
             HeroHeader(isEnglish = isEnglish)
 
-            // ── Animated content: role picker ↔ pharmacist auth ─────────────
             AnimatedContent(
-                targetState = showPharmacistAuth,
+                targetState = selectedRole,
                 transitionSpec = {
-                    fadeIn(animationSpec = tween(400)) + slideInHorizontally { if (targetState) it else -it } togetherWith
-                    fadeOut(animationSpec = tween(400)) + slideOutHorizontally { if (targetState) -it else it }
+                    fadeIn(animationSpec = tween(400)) + slideInHorizontally { if (targetState != null) it else -it } togetherWith
+                    fadeOut(animationSpec = tween(400)) + slideOutHorizontally { if (targetState != null) -it else it }
                 },
                 label = "login_step"
-            ) { isPharmacistAuth ->
-                if (!isPharmacistAuth) {
+            ) { role ->
+                if (role == null) {
                     RolePickerStep(
                         isEnglish = isEnglish,
-                        onVillagerSelected = onVillagerSelected,
-                        onPharmacistSelected = { showPharmacistAuth = true }
+                        onRoleSelected = { selectedRole = it }
                     )
                 } else {
-                    PharmacistAuthStep(
+                    UniversalAuthStep(
+                        role = role,
                         isEnglish = isEnglish,
-                        onBack = { showPharmacistAuth = false },
-                        onLoginSuccess = onPharmacistLoginSuccess
+                        onBack = { selectedRole = null },
+                        authViewModel = authViewModel
                     )
                 }
             }
             
             Spacer(modifier = Modifier.weight(1f))
-            
-            // Footer with Links
             FooterSection(isEnglish = isEnglish)
+        }
+        
+        if (authState is AuthState.Loading) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.4f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Card(
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color.White)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(24.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        CircularProgressIndicator(color = Teal)
+                        Spacer(Modifier.height(16.dp))
+                        Text(L.loading(isEnglish), fontWeight = FontWeight.Medium)
+                    }
+                }
+            }
         }
     }
 }
@@ -114,150 +158,74 @@ private fun TopUtilityBar(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(top = 16.dp, start = 16.dp, end = 16.dp),
+            .padding(horizontal = 20.dp, vertical = 12.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Help Button
         TextButton(
-            onClick = { /* Help functionality */ },
+            onClick = onLanguageToggle,
             colors = ButtonDefaults.textButtonColors(contentColor = Teal)
         ) {
-            Icon(Icons.AutoMirrored.Filled.HelpOutline, contentDescription = null, modifier = Modifier.size(18.dp))
+            Icon(Icons.Default.Language, contentDescription = null, modifier = Modifier.size(18.dp))
             Spacer(Modifier.width(6.dp))
-            Text(if (isEnglish) "Help" else "ಸಹಾಯ", fontSize = 14.sp, fontWeight = FontWeight.Medium)
+            Text(
+                text = if (isEnglish) "ಕನ್ನಡ" else "English",
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold
+            )
         }
 
-        // Language Switcher
-        Surface(
-            onClick = onLanguageToggle,
-            shape = RoundedCornerShape(20.dp),
-            color = PowderBlue.copy(alpha = 0.2f),
-            modifier = Modifier.height(36.dp)
-        ) {
-            Row(
-                modifier = Modifier.padding(horizontal = 12.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = if (isEnglish) "ಕನ್ನಡ" else "English",
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = TealDark
-                )
-            }
+        IconButton(onClick = { /* Help context */ }) {
+            Icon(Icons.AutoMirrored.Filled.HelpOutline, contentDescription = L.help(isEnglish), tint = TextMuted)
         }
     }
 }
 
 @Composable
 private fun HeroHeader(isEnglish: Boolean) {
-    val infiniteTransition = rememberInfiniteTransition(label = "hero_pulse")
-    val pulseScale by infiniteTransition.animateFloat(
-        initialValue = 1f,
-        targetValue = 1.05f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(2500, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "pulse"
-    )
-
-    val floatingOffset by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = -8f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(3000, easing = LinearOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "float"
-    )
-
-    Box(
+    Column(
         modifier = Modifier
             .fillMaxWidth()
-            .height(240.dp),
-        contentAlignment = Alignment.Center
+            .padding(top = 20.dp, bottom = 40.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally
+        Box(
+            modifier = Modifier
+                .size(80.dp)
+                .shadow(12.dp, CircleShape)
+                .background(Brush.linearGradient(listOf(Teal, TealDark)), CircleShape),
+            contentAlignment = Alignment.Center
         ) {
-            // App icon bubble with soft shadow and animation
-            Box(
-                modifier = Modifier
-                    .size(90.dp)
-                    .graphicsLayer {
-                        scaleX = pulseScale
-                        scaleY = pulseScale
-                        translationY = floatingOffset
-                    }
-                    .shadow(12.dp, CircleShape, spotColor = Teal.copy(alpha = 0.3f))
-                    .clip(CircleShape)
-                    .background(Color.White),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Filled.LocalHospital,
-                    contentDescription = null,
-                    tint = Teal,
-                    modifier = Modifier.size(48.dp)
-                )
-            }
-
-            Spacer(Modifier.height(20.dp))
-
-            Text(
-                text = "Grama-Sanjeevini",
-                fontSize = 30.sp,
-                fontWeight = FontWeight.ExtraBold,
-                color = TextPrimary,
-                letterSpacing = (-0.5).sp
-            )
-            Spacer(Modifier.height(4.dp))
-            Text(
-                text = if (isEnglish) "Connecting Rural Healthcare" else "ಗ್ರಾಮೀಣ ಆರೋಗ್ಯ ಸಂಪರ್ಕ",
-                fontSize = 14.sp,
-                color = TextMuted,
-                textAlign = TextAlign.Center,
-                fontWeight = FontWeight.Medium
+            Icon(
+                imageVector = Icons.Default.LocalHospital,
+                contentDescription = null,
+                tint = Color.White,
+                modifier = Modifier.size(44.dp)
             )
         }
-    }
-}
 
-@Composable
-private fun BackgroundDecorations() {
-    Canvas(modifier = Modifier.fillMaxSize().alpha(0.4f)) {
-        drawCircle(
-            brush = Brush.radialGradient(
-                colors = listOf(PowderBlue.copy(alpha = 0.3f), Color.Transparent),
-                center = Offset(size.width * 0.9f, size.height * 0.05f),
-                radius = size.width * 0.7f
-            ),
-            center = Offset(size.width * 0.9f, size.height * 0.05f),
-            radius = size.width * 0.7f
+        Spacer(Modifier.height(24.dp))
+
+        Text(
+            text = L.gramaSanjeevini(isEnglish),
+            fontSize = 32.sp,
+            fontWeight = FontWeight.ExtraBold,
+            color = Teal,
+            letterSpacing = (-0.5).sp
         )
-        drawCircle(
-            brush = Brush.radialGradient(
-                colors = listOf(Teal.copy(alpha = 0.08f), Color.Transparent),
-                center = Offset(size.width * 0.1f, size.height * 0.45f),
-                radius = size.width * 0.6f
-            ),
-            center = Offset(size.width * 0.1f, size.height * 0.45f),
-            radius = size.width * 0.6f
+        Text(
+            text = L.yourHealthPriority(isEnglish),
+            fontSize = 15.sp,
+            color = TextMuted,
+            letterSpacing = 1.sp
         )
     }
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Step 1 — Role picker
-// ─────────────────────────────────────────────────────────────────────────────
 
 @Composable
 private fun RolePickerStep(
     isEnglish: Boolean,
-    onVillagerSelected: () -> Unit,
-    onPharmacistSelected: () -> Unit
+    onRoleSelected: (UserRole) -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -266,251 +234,291 @@ private fun RolePickerStep(
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text(
-            text = if (isEnglish) "Continue as..." else "ಯಾರಾಗಿ ಮುಂದುವರಿಯುತ್ತೀರಿ?",
-            fontSize = 18.sp,
-            fontWeight = FontWeight.SemiBold,
+            text = L.welcomeBack(isEnglish),
+            fontSize = 24.sp,
+            fontWeight = FontWeight.Bold,
             color = TextPrimary
         )
-        Spacer(Modifier.height(28.dp))
+        Text(
+            text = L.selectRole(isEnglish),
+            fontSize = 14.sp,
+            color = TextMuted,
+            textAlign = TextAlign.Center
+        )
 
-        // Villager card
+        Spacer(Modifier.height(32.dp))
+
         RoleCard(
-            icon            = Icons.Filled.PersonSearch,
-            title           = if (isEnglish) "Villager" else "ಗ್ರಾಮಸ್ಥರು",
-            description     = if (isEnglish) "Search for life-saving medicines" else "ಜೀವ ಉಳಿಸುವ ಔಷಧಿಗಳಿಗಾಗಿ ಹುಡುಕಿ",
-            surfaceColor    = BlueSurface,
-            iconTint        = Teal,
-            iconBackground  = PowderBlue.copy(alpha = 0.5f),
-            onClick         = onVillagerSelected
+            title = L.villager(isEnglish),
+            subtitle = L.villagerSub(isEnglish),
+            icon = Icons.Default.People,
+            color = BlueSurface,
+            accentColor = Color(0xFF2196F3),
+            onClick = { onRoleSelected(UserRole.VILLAGER) }
         )
 
         Spacer(Modifier.height(16.dp))
 
-        // Pharmacist card
         RoleCard(
-            icon            = Icons.Filled.Storefront,
-            title           = if (isEnglish) "Pharmacist" else "ಔಷಧಿಕಾರರು",
-            description     = if (isEnglish) "Manage and update medicine stock" else "ಔಷಧಿ ದಾಸ್ತಾನು ನಿರ್ವಹಿಸಿ",
-            surfaceColor    = GreenSurface,
-            iconTint        = Color(0xFF388E3C),
-            iconBackground  = Color(0xFFE8F5E9),
-            onClick         = onPharmacistSelected
+            title = L.pharmacist(isEnglish),
+            subtitle = L.pharmacistSub(isEnglish),
+            icon = Icons.Default.MedicalServices,
+            color = GreenSurface,
+            accentColor = Teal,
+            onClick = { onRoleSelected(UserRole.PHARMACIST) }
         )
-
-        Spacer(Modifier.height(40.dp))
-
-        Surface(
-            color = Color(0xFFF8F9FA),
-            shape = RoundedCornerShape(12.dp)
-        ) {
-            Text(
-                text = if (isEnglish) "Quick access for citizens" else "ನಾಗರಿಕರಿಗೆ ತ್ವರಿತ ಪ್ರವೇಶ",
-                fontSize = 12.sp,
-                color = TextMuted,
-                modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)
-            )
-        }
     }
 }
 
 @Composable
 private fun RoleCard(
-    icon: ImageVector,
     title: String,
-    description: String,
-    surfaceColor: Color,
-    iconTint: Color,
-    iconBackground: Color,
+    subtitle: String,
+    icon: ImageVector,
+    color: Color,
+    accentColor: Color,
     onClick: () -> Unit
 ) {
-    var isPressed by remember { mutableStateOf(false) }
-    val scale by animateFloatAsState(
-        targetValue = if (isPressed) 0.96f else 1f,
-        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow),
-        label = "scale"
-    )
-
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .height(104.dp)
-            .graphicsLayer {
-                scaleX = scale
-                scaleY = scale
-            }
-            .shadow(if (isPressed) 2.dp else 6.dp, RoundedCornerShape(24.dp), ambientColor = Color.LightGray),
-        shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(containerColor = surfaceColor),
-        onClick = {
-            isPressed = true
-            onClick()
-        }
+            .height(110.dp)
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = color),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Row(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 20.dp),
+                .padding(20.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Box(
                 modifier = Modifier
-                    .size(60.dp)
-                    .clip(RoundedCornerShape(18.dp))
-                    .background(iconBackground),
+                    .size(54.dp)
+                    .background(Color.White, CircleShape),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(icon, contentDescription = null, tint = iconTint, modifier = Modifier.size(30.dp))
+                Icon(icon, contentDescription = null, tint = accentColor, modifier = Modifier.size(28.dp))
             }
-
-            Spacer(Modifier.width(20.dp))
-
+            Spacer(Modifier.width(16.dp))
             Column(modifier = Modifier.weight(1f)) {
-                Text(title, fontSize = 19.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
-                Spacer(Modifier.height(4.dp))
-                Text(description, fontSize = 13.sp, color = TextMuted, lineHeight = 18.sp)
+                Text(title, fontWeight = FontWeight.Bold, fontSize = 18.sp, color = TextPrimary)
+                Text(subtitle, fontSize = 13.sp, color = TextMuted)
             }
-
-            Icon(
-                Icons.AutoMirrored.Filled.ArrowForwardIos,
-                contentDescription = null,
-                tint = TextMuted.copy(alpha = 0.4f),
-                modifier = Modifier.size(14.dp)
-            )
-        }
-    }
-    
-    LaunchedEffect(isPressed) {
-        if (isPressed) {
-            kotlinx.coroutines.delay(150)
-            isPressed = false
+            Icon(Icons.AutoMirrored.Filled.ArrowForwardIos, contentDescription = null, tint = TextMuted, modifier = Modifier.size(16.dp))
         }
     }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Step 2 — Pharmacist authentication
-// ─────────────────────────────────────────────────────────────────────────────
-
 @Composable
-private fun PharmacistAuthStep(
+private fun UniversalAuthStep(
+    role: UserRole,
     isEnglish: Boolean,
     onBack: () -> Unit,
-    onLoginSuccess: () -> Unit
+    authViewModel: AuthViewModel
 ) {
+    val context = LocalContext.current
+    var isSignUp by remember { mutableStateOf(false) }
+    var name by remember { mutableStateOf("") }
+    var email by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
+    var passwordVisible by remember { mutableStateOf(false) }
+
+    val textFieldColors = OutlinedTextFieldDefaults.colors(
+        focusedTextColor = Color.Black,
+        unfocusedTextColor = Color.Black,
+        focusedBorderColor = Teal,
+        unfocusedBorderColor = Color(0xFFDADCE0),
+        focusedLabelColor = Teal,
+        unfocusedLabelColor = TextMuted,
+        cursorColor = Teal
+    )
+    val inputTextStyle = TextStyle(color = Color.Black, fontSize = 16.sp)
+
+    val gso = remember {
+        GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
+            .requestEmail()
+            .requestProfile()
+            .requestIdToken(context.getString(com.example.gramasanjeevin.R.string.default_web_client_id))
+            .build()
+    }
+    
+    val googleSignInLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            val task = GoogleSignIn.getSignedInAccountFromIntent(result.data)
+            try {
+                val account = task.getResult(ApiException::class.java)
+                account?.idToken?.let { authViewModel.signInWithGoogle(it) }
+            } catch (e: ApiException) {
+                Toast.makeText(context, if (isEnglish) "Google Sign-In failed" else "Google ಸೈನ್-ಇನ್ ವಿಫಲವಾಗಿದೆ", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 24.dp),
+            .padding(horizontal = 24.dp)
+            .verticalScroll(rememberScrollState()),
         horizontalAlignment = Alignment.Start
     ) {
-        // Back Button
         IconButton(
             onClick = onBack,
-            modifier = Modifier
-                .size(44.dp)
-                .background(Color(0xFFF5F5F5), CircleShape)
+            modifier = Modifier.size(44.dp).background(Color(0xFFF5F5F5), CircleShape)
         ) {
-            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = TextPrimary, modifier = Modifier.size(20.dp))
+            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = L.back(isEnglish), tint = TextPrimary)
         }
 
-        Spacer(Modifier.height(24.dp))
+        Spacer(Modifier.height(20.dp))
 
         Text(
-            text = if (isEnglish) "Pharmacist Login" else "ಔಷಧಿಕಾರರ ಲಾಗಿನ್",
+            text = if (isSignUp) {
+                if (role == UserRole.VILLAGER) L.signUp(isEnglish) else L.pharmacist(isEnglish) + " " + L.signUp(isEnglish)
+            } else {
+                if (role == UserRole.VILLAGER) L.signIn(isEnglish) else L.pharmacist(isEnglish) + " " + L.signIn(isEnglish)
+            },
             fontSize = 26.sp,
             fontWeight = FontWeight.Bold,
             color = TextPrimary
         )
         Text(
-            text = if (isEnglish) "Secure access for shop owners" else "ಅಂಗಡಿ ಮಾಲೀಕರಿಗೆ ಸುರಕ್ಷಿತ ಪ್ರವೇಶ",
+            text = L.authStepSubTitle(isEnglish, isSignUp),
             fontSize = 14.sp,
             color = TextMuted
         )
 
-        Spacer(Modifier.height(36.dp))
+        Spacer(Modifier.height(32.dp))
 
-        // Google button
-        OutlinedButton(
-            onClick = { onLoginSuccess() },
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(58.dp),
-            shape = RoundedCornerShape(16.dp),
-            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFDADCE0)),
-            colors = ButtonDefaults.outlinedButtonColors(containerColor = Color.White)
-        ) {
-            Icon(
-                imageVector = Icons.Filled.AccountCircle,
-                contentDescription = null,
-                tint = Color(0xFF4285F4),
-                modifier = Modifier.size(24.dp)
+        if (isSignUp) {
+            OutlinedTextField(
+                value = name,
+                onValueChange = { name = it },
+                label = { Text(L.fullName(isEnglish)) },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                leadingIcon = { Icon(Icons.Default.Person, contentDescription = null, tint = Teal) },
+                colors = textFieldColors,
+                textStyle = inputTextStyle
             )
-            Spacer(Modifier.width(12.dp))
+            Spacer(Modifier.height(12.dp))
+        }
+
+        OutlinedTextField(
+            value = email,
+            onValueChange = { email = it },
+            label = { Text(L.email(isEnglish)) },
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(12.dp),
+            leadingIcon = { Icon(Icons.Default.Email, contentDescription = null, tint = Teal) },
+            colors = textFieldColors,
+            textStyle = inputTextStyle
+        )
+        Spacer(Modifier.height(12.dp))
+        OutlinedTextField(
+            value = password,
+            onValueChange = { password = it },
+            label = { Text(L.password(isEnglish)) },
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(12.dp),
+            leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null, tint = Teal) },
+            trailingIcon = {
+                val image = if (passwordVisible) Icons.Filled.Visibility else Icons.Filled.VisibilityOff
+                IconButton(onClick = { passwordVisible = !passwordVisible }) {
+                    Icon(imageVector = image, contentDescription = null, tint = Teal)
+                }
+            },
+            visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+            colors = textFieldColors,
+            textStyle = inputTextStyle
+        )
+        Spacer(Modifier.height(20.dp))
+        Button(
+            onClick = { 
+                if (isSignUp) {
+                    authViewModel.signUpWithEmail(email, password, name, role)
+                } else {
+                    authViewModel.signInWithEmail(email, password)
+                }
+            },
+            modifier = Modifier.fillMaxWidth().height(54.dp),
+            shape = RoundedCornerShape(12.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = Teal, contentColor = Color.White)
+        ) {
             Text(
-                text = if (isEnglish) "Sign in with Google" else "Google ಮೂಲಕ ಸೈನ್ ಇನ್ ಮಾಡಿ",
-                fontSize = 16.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = Color(0xFF3C4043)
+                text = if (isSignUp) L.signUp(isEnglish) else L.signIn(isEnglish),
+                fontWeight = FontWeight.Bold, 
+                fontSize = 16.sp
             )
         }
 
         Spacer(Modifier.height(16.dp))
 
-        // Phone button
-        Button(
-            onClick = { /* Implement Phone Auth */ },
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(58.dp),
-            shape = RoundedCornerShape(16.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = TealDark)
+        TextButton(
+            onClick = { isSignUp = !isSignUp },
+            modifier = Modifier.align(Alignment.CenterHorizontally)
         ) {
-            Icon(Icons.Filled.Phone, contentDescription = null, modifier = Modifier.size(20.dp))
-            Spacer(Modifier.width(12.dp))
             Text(
-                text = if (isEnglish) "Continue with Phone" else "ಫೋನ್ ಮೂಲಕ ಮುಂದುವರಿಸಿ",
-                fontSize = 16.sp,
-                fontWeight = FontWeight.Bold
+                text = if (isSignUp) L.alreadyHaveAccount(isEnglish) else L.dontHaveAccount(isEnglish),
+                color = Teal,
+                fontWeight = FontWeight.Medium
             )
         }
 
-        Spacer(Modifier.height(32.dp))
-
-        // Demo Mode Info Box
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(20.dp))
-                .background(Teal.copy(alpha = 0.08f))
-                .padding(16.dp)
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(vertical = 24.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Row(verticalAlignment = Alignment.Top) {
-                Icon(
-                    Icons.Filled.TipsAndUpdates,
-                    contentDescription = null,
-                    tint = TealDark,
-                    modifier = Modifier.size(20.dp).padding(top = 2.dp)
-                )
-                Spacer(Modifier.width(12.dp))
-                Column {
-                    Text(
-                        text = if (isEnglish) "Demo Environment" else "ಡೆಮೊ ಆವೃತ್ತಿ",
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = TealDark
-                    )
-                    Text(
-                        text = if (isEnglish) 
-                            "Real auth is disabled. Tap Google to enter the pharmacist dashboard." 
-                        else 
-                            "ನೈಜ ದೃಢೀಕರಣವನ್ನು ನಿಷ್ಕ್ರಿಯಗೊಳಿಸಲಾಗಿದೆ. ಡ್ಯಾಶ್‌ಬೋರ್ಡ್ ಪ್ರವೇಶಿಸಲು Google ಟ್ಯಾಪ್ ಮಾಡಿ.",
-                        fontSize = 12.sp,
-                        color = TealDark.copy(alpha = 0.8f),
-                        lineHeight = 18.sp
-                    )
-                }
-            }
+            HorizontalDivider(modifier = Modifier.weight(1f), color = Color(0xFFEEEEEE))
+            Text(
+                text = L.orLabel(isEnglish),
+                modifier = Modifier.padding(horizontal = 12.dp),
+                color = TextMuted,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold
+            )
+            HorizontalDivider(modifier = Modifier.weight(1f), color = Color(0xFFEEEEEE))
         }
+
+        OutlinedButton(
+            onClick = { 
+                val gsc = GoogleSignIn.getClient(context, gso)
+                googleSignInLauncher.launch(gsc.signInIntent)
+            },
+            modifier = Modifier.fillMaxWidth().height(54.dp),
+            shape = RoundedCornerShape(12.dp),
+            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFDADCE0)),
+            colors = ButtonDefaults.outlinedButtonColors(containerColor = Color.White)
+        ) {
+            Icon(Icons.Filled.AccountCircle, contentDescription = null, tint = Color(0xFF4285F4), modifier = Modifier.size(24.dp))
+            Spacer(Modifier.width(12.dp))
+            Text(
+                text = L.googleContinue(isEnglish),
+                color = TextPrimary,
+                fontWeight = FontWeight.Medium
+            )
+        }
+        
+        Spacer(Modifier.height(40.dp))
+    }
+}
+
+@Composable
+private fun BackgroundDecorations() {
+    Canvas(modifier = Modifier.fillMaxSize()) {
+        drawCircle(
+            color = PowderBlue.copy(alpha = 0.2f),
+            radius = 150.dp.toPx(),
+            center = Offset(size.width * 0.9f, size.height * 0.1f)
+        )
+        drawCircle(
+            color = Teal.copy(alpha = 0.05f),
+            radius = 200.dp.toPx(),
+            center = Offset(size.width * -0.1f, size.height * 0.8f)
+        )
     }
 }
 
@@ -522,40 +530,23 @@ private fun FooterSection(isEnglish: Boolean) {
             .padding(bottom = 24.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.Center,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
+        Text(
+            text = L.authSecured(isEnglish),
+            color = TextMuted,
+            fontSize = 11.sp,
+            letterSpacing = 0.5.sp
+        )
+        Spacer(Modifier.height(4.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Default.Lock, contentDescription = null, modifier = Modifier.size(10.dp), tint = TextMuted)
+            Spacer(Modifier.width(4.dp))
             Text(
-                text = if (isEnglish) "Privacy Policy" else "ಗೌಪ್ಯತಾ ನೀತಿ",
-                fontSize = 12.sp,
+                text = L.termsPrivacy(isEnglish),
                 color = Teal,
-                textDecoration = TextDecoration.Underline
-            )
-            Spacer(Modifier.width(16.dp))
-            Box(modifier = Modifier.size(4.dp).clip(CircleShape).background(TextMuted.copy(alpha = 0.3f)))
-            Spacer(Modifier.width(16.dp))
-            Text(
-                text = if (isEnglish) "Terms of Service" else "ಸೇವಾ ನಿಯಮಗಳು",
-                fontSize = 12.sp,
-                color = Teal,
-                textDecoration = TextDecoration.Underline
+                fontSize = 11.sp,
+                textDecoration = TextDecoration.Underline,
+                modifier = Modifier.clickable { }
             )
         }
-        
-        Spacer(Modifier.height(12.dp))
-        
-        Text(
-            text = "Grama-Sanjeevini · Health for All",
-            style = MaterialTheme.typography.labelSmall,
-            color = TextMuted.copy(alpha = 0.6f)
-        )
     }
-}
-
-@Preview(showBackground = true)
-@Composable
-fun LoginScreenPreview() {
-    LoginScreen({}, {})
 }
